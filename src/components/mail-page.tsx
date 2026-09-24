@@ -11,11 +11,13 @@ import type { Mailbox } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { useAccounts, useMailboxes } from "@/lib/queries";
 import { useSearch, type SearchStatus } from "@/lib/search";
+import { useSession } from "@/lib/session";
 
 export function MailPage({ onManageAccounts }: { onManageAccounts: () => void }) {
   const accounts = useAccounts();
   const mailboxes = useMailboxes();
   const search = useSearch();
+  const { readOnly } = useSession();
   const [mailboxId, setMailboxId] = useState<number | null>(null);
   const [messageId, setMessageId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
@@ -45,8 +47,14 @@ export function MailPage({ onManageAccounts }: { onManageAccounts: () => void })
       <div className="m-auto flex flex-col items-center gap-3 text-center">
         <MailOpen className="size-10 text-muted-foreground" />
         <h2 className="text-lg font-semibold">Nothing backed up yet</h2>
-        <p className="text-sm text-muted-foreground">Add an IMAP account to start your first backup.</p>
-        <Button onClick={onManageAccounts}>Go to accounts</Button>
+        {readOnly ? (
+          <p className="text-sm text-muted-foreground">Mailback runs in read-only mode, so accounts can't be added here.</p>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">Add an IMAP account to start your first backup.</p>
+            <Button onClick={onManageAccounts}>Go to accounts</Button>
+          </>
+        )}
       </div>
     );
   }
@@ -60,7 +68,7 @@ export function MailPage({ onManageAccounts }: { onManageAccounts: () => void })
           setMessageId(null);
           setQuery("");
         }}
-        onRestore={setRestoring}
+        onRestore={readOnly ? undefined : setRestoring}
         onExport={setExporting}
       />
 

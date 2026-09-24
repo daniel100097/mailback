@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { api, type Account, type Task } from "@/lib/api";
+import { useSession } from "@/lib/session";
 import { formatBytes, formatDate, formatRelative, plural } from "@/lib/format";
 import { useAccounts, useStats, useTasks } from "@/lib/queries";
 import { useSearch } from "@/lib/search";
@@ -24,6 +25,7 @@ export function AccountsPage() {
   const accounts = useAccounts();
   const stats = useStats();
   const tasks = useTasks();
+  const { readOnly } = useSession();
   const [editing, setEditing] = useState<Account | undefined>();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<Account | null>(null);
@@ -45,9 +47,11 @@ export function AccountsPage() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Accounts</h2>
-          <Button onClick={() => openDialog()}>
-            <Plus /> Add account
-          </Button>
+          {!readOnly && (
+            <Button onClick={() => openDialog()}>
+              <Plus /> Add account
+            </Button>
+          )}
         </div>
 
         {accounts.isLoading && <Loader2 className="mx-auto animate-spin text-muted-foreground" />}
@@ -56,18 +60,24 @@ export function AccountsPage() {
           <Card className="items-center py-12 text-center">
             <Server className="size-10 text-muted-foreground" />
             <CardTitle>No accounts yet</CardTitle>
-            <CardDescription>Add an IMAP account to start backing up its mail.</CardDescription>
-            <Button onClick={() => openDialog()}>
-              <Plus /> Add account
-            </Button>
+            {readOnly ? (
+              <CardDescription>Mailback runs in read-only mode, so accounts can't be added here.</CardDescription>
+            ) : (
+              <>
+                <CardDescription>Add an IMAP account to start backing up its mail.</CardDescription>
+                <Button onClick={() => openDialog()}>
+                  <Plus /> Add account
+                </Button>
+              </>
+            )}
           </Card>
         )}
         {accounts.data?.map(account => (
           <AccountCard
             key={account.id}
             account={account}
-            onEdit={() => openDialog(account)}
-            onDelete={() => setDeleting(account)}
+            onEdit={readOnly ? undefined : () => openDialog(account)}
+            onDelete={readOnly ? undefined : () => setDeleting(account)}
           />
         ))}
       </section>
@@ -98,7 +108,8 @@ function Stat({ label, value }: { label: string; value: string | number | undefi
   );
 }
 
-function AccountCard({ account, onEdit, onDelete }: { account: Account; onEdit: () => void; onDelete: () => void }) {
+/** Without onEdit and onDelete (read-only mode) the card only offers syncing. */
+function AccountCard({ account, onEdit, onDelete }: { account: Account; onEdit?: () => void; onDelete?: () => void }) {
   const queryClient = useQueryClient();
   const sync = useMutation({
     mutationFn: () => api(`/api/accounts/${account.id}/sync`, { method: "POST" }),
@@ -128,12 +139,16 @@ function AccountCard({ account, onEdit, onDelete }: { account: Account; onEdit: 
             <RefreshCw className={account.syncing ? "animate-spin" : undefined} />
             {account.syncing ? "Syncing…" : "Sync now"}
           </Button>
-          <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Edit">
-            <Pencil />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={onDelete} aria-label="Delete" disabled={account.syncing}>
-            <Trash2 />
-          </Button>
+          {onEdit && (
+            <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Edit">
+              <Pencil />
+            </Button>
+          )}
+          {onDelete && (
+            <Button size="icon" variant="ghost" onClick={onDelete} aria-label="Delete" disabled={account.syncing}>
+              <Trash2 />
+            </Button>
+          )}
         </CardAction>
       </CardHeader>
       <CardContent className="text-sm">

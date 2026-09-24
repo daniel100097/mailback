@@ -44,7 +44,7 @@ export async function apiBytes(path: string): Promise<Uint8Array<ArrayBuffer> | 
 
 // --- API shapes (dates arrive as ISO strings) --------------------------------
 
-export type Session = { required: boolean; authenticated: boolean };
+export type Session = { required: boolean; authenticated: boolean; readOnly: boolean };
 
 export type VaultResponse = { configured: false } | { configured: true; vault: VaultPayload };
 

@@ -6,9 +6,10 @@ import { AccountsPage } from "@/components/accounts-page";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { LoginScreen } from "@/components/login-screen";
 import { MailPage } from "@/components/mail-page";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
-import { VaultSetup, VaultUnlock } from "@/components/vault-screens";
+import { ReadOnlySetup, VaultSetup, VaultUnlock } from "@/components/vault-screens";
 import { useAccounts } from "@/lib/queries";
 import { SearchProvider, useSearch } from "@/lib/search";
 import { SessionProvider, useSession, useSessionQuery } from "@/lib/session";
@@ -44,7 +45,7 @@ function SessionGate() {
   }
   if (session.data.required && !session.data.authenticated) return <LoginScreen />;
   return (
-    <SessionProvider loginRequired={session.data.required}>
+    <SessionProvider session={session.data}>
       <VaultProvider>
         <VaultGate />
       </VaultProvider>
@@ -54,6 +55,7 @@ function SessionGate() {
 
 function VaultGate() {
   const { state, reload } = useVault();
+  const { readOnly } = useSession();
   switch (state.status) {
     case "loading":
       return <Loader2 className="m-auto mt-[40vh] animate-spin text-muted-foreground" />;
@@ -67,7 +69,7 @@ function VaultGate() {
         </div>
       );
     case "setup":
-      return <VaultSetup />;
+      return readOnly ? <ReadOnlySetup /> : <VaultSetup />;
     case "locked":
       return <VaultUnlock />;
     case "unlocked":
@@ -87,7 +89,7 @@ function pageFromHash(): Page {
 
 function Shell() {
   const { lock } = useVault();
-  const { loginRequired, logout } = useSession();
+  const { loginRequired, readOnly, logout } = useSession();
   const [page, setPage] = useState(pageFromHash);
   useSyncWatcher();
 
@@ -112,7 +114,12 @@ function Shell() {
             <Server /> Accounts
           </NavButton>
         </nav>
-        <div className="ml-auto flex gap-1">
+        <div className="ml-auto flex items-center gap-1">
+          {readOnly && (
+            <Badge variant="secondary" title="Browse, search and export only. Set by MAILBACK_READ_ONLY.">
+              Read-only
+            </Badge>
+          )}
           <Button variant="ghost" size="sm" onClick={lock}>
             <Lock /> Lock
           </Button>

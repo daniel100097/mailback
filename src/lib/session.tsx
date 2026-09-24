@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, type ReactNode } from "react";
 import { api, UNAUTHORIZED_EVENT, type Session } from "./api";
 
-type SessionContextValue = { loginRequired: boolean; logout: () => Promise<void> };
+type SessionContextValue = { loginRequired: boolean; readOnly: boolean; logout: () => Promise<void> };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
@@ -11,7 +11,7 @@ export function useSessionQuery() {
 }
 
 /** Provides logout, and re-checks the session whenever an API call comes back 401. */
-export function SessionProvider({ loginRequired, children }: { loginRequired: boolean; children: ReactNode }) {
+export function SessionProvider({ session, children }: { session: Session; children: ReactNode }) {
   const client = useQueryClient();
 
   useEffect(() => {
@@ -23,11 +23,13 @@ export function SessionProvider({ loginRequired, children }: { loginRequired: bo
   const logout = useCallback(async () => {
     await api("/api/logout", { method: "POST" });
     // Showing the login unmounts the app, which drops the unlocked keys; then forget all cached data.
-    client.setQueryData<Session>(["session"], { required: true, authenticated: false });
+    client.setQueryData<Session>(["session"], old => old && { ...old, authenticated: false });
     client.removeQueries({ predicate: query => query.queryKey[0] !== "session" });
   }, [client]);
 
-  return <SessionContext value={{ loginRequired, logout }}>{children}</SessionContext>;
+  return (
+    <SessionContext value={{ loginRequired: session.required, readOnly: session.readOnly, logout }}>{children}</SessionContext>
+  );
 }
 
 export function useSession(): SessionContextValue {

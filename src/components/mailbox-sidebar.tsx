@@ -38,7 +38,8 @@ export function MailboxSidebar({
 }: {
   selectedId: number | null;
   onSelect: (mailbox: Mailbox) => void;
-  onRestore: (mailbox: Mailbox) => void;
+  /** Omitted in read-only mode */
+  onRestore?: (mailbox: Mailbox) => void;
   onExport: (mailbox: Mailbox) => void;
 }) {
   const accounts = useAccounts();
@@ -100,9 +101,11 @@ export function MailboxSidebar({
                     <DropdownMenuItem onSelect={() => onExport(mailbox)}>
                       <Download /> Export…
                     </DropdownMenuItem>
-                    <DropdownMenuItem disabled={!mailbox.messageCount} onSelect={() => onRestore(mailbox)}>
-                      <Undo2 /> Restore to IMAP…
-                    </DropdownMenuItem>
+                    {onRestore && (
+                      <DropdownMenuItem disabled={!mailbox.messageCount} onSelect={() => onRestore(mailbox)}>
+                        <Undo2 /> Restore to IMAP…
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

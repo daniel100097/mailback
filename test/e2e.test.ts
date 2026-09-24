@@ -78,6 +78,25 @@ let server: ReturnType<typeof Bun.spawn>;
 let dataDir: string;
 let vault: UnlockedVault;
 let sessionCookie = "";
+let passwordHash: string;
+
+async function startServer(env: Record<string, string> = {}) {
+  server = Bun.spawn(["bun", "src/index.ts"], {
+    env: {
+      ...process.env,
+      NODE_ENV: "test",
+      PORT: String(PORT),
+      DATABASE_PATH: join(dataDir, "mailback.db"),
+      SECRET_KEY_PATH: join(dataDir, "secret.key"),
+      SYNC_INTERVAL_MINUTES: "0",
+      MAILBACK_PASSWORD_HASH: passwordHash,
+      ...env,
+    },
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  await waitFor(async () => (await fetch(`${BASE}/api/health`)).ok, "server", { retryErrors: true });
+}
 
 async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, {
@@ -125,20 +144,8 @@ describe.skipIf(!IMAP_HOST)("e2e", () => {
     await client.logout();
 
     dataDir = await mkdtemp(join(tmpdir(), "mailback-e2e-"));
-    server = Bun.spawn(["bun", "src/index.ts"], {
-      env: {
-        ...process.env,
-        NODE_ENV: "test",
-        PORT: String(PORT),
-        DATABASE_PATH: join(dataDir, "mailback.db"),
-        SECRET_KEY_PATH: join(dataDir, "secret.key"),
-        SYNC_INTERVAL_MINUTES: "0",
-        MAILBACK_PASSWORD_HASH: Buffer.from(await Bun.password.hash(LOGIN_PASSWORD)).toString("base64"),
-      },
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    await waitFor(async () => (await fetch(`${BASE}/api/health`)).ok, "server", { retryErrors: true });
+    passwordHash = Buffer.from(await Bun.password.hash(LOGIN_PASSWORD)).toString("base64");
+    await startServer();
   }, 60_000);
 
   afterAll(async () => {
@@ -152,7 +159,7 @@ describe.skipIf(!IMAP_HOST)("e2e", () => {
     expect((await fetch(`${BASE}/api/vault`)).status).toBe(401);
     expect((await fetch(`${BASE}/api/mailboxes/1/sources`)).status).toBe(401);
     expect((await fetch(`${BASE}/api/vault`, { headers: { Cookie: "mailback_session=v1.9999999999.forged" } })).status).toBe(401);
-    expect(await api<object>("/api/session")).toEqual({ required: true, authenticated: false });
+    expect(await api<object>("/api/session")).toEqual({ required: true, authenticated: false, readOnly: false });
 
     const login = (password: string) =>
       fetch(`${BASE}/api/login`, {
@@ -167,7 +174,7 @@ describe.skipIf(!IMAP_HOST)("e2e", () => {
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Strict");
     sessionCookie = cookie.split(";")[0]!;
-    expect(await api<object>("/api/session")).toEqual({ required: true, authenticated: true });
+    expect(await api<object>("/api/session")).toEqual({ required: true, authenticated: true, readOnly: false });
   });
 
   test("syncing requires encryption to be set up", async () => {
@@ -337,5 +344,32 @@ describe.skipIf(!IMAP_HOST)("e2e", () => {
     await api("/api/accounts/1", { method: "DELETE" });
     expect((await api("/api/stats")).messages).toBe(0);
     expect(await api("/api/search-index")).toBeNull();
+  });
+
+  test("read-only mode blocks every write except syncs and the search index", async () => {
+    server.kill();
+    await server.exited;
+    await startServer({ MAILBACK_READ_ONLY: "true" });
+
+    // Same server secret and password hash, so the session survives the restart
+    expect(await api<object>("/api/session")).toEqual({ required: true, authenticated: true, readOnly: true });
+    expect((await api("/api/vault")).configured).toBe(true);
+    const status = async (path: string, method: string, body: unknown = {}) =>
+      (await fetch(`${BASE}${path}`, { method, body: JSON.stringify(body), headers: { Cookie: sessionCookie } })).status;
+    expect(await status("/api/accounts", "POST")).toBe(403);
+    expect(await status("/api/accounts/test", "POST")).toBe(403);
+    expect(await status("/api/accounts/2", "PATCH")).toBe(403);
+    expect(await status("/api/accounts/2", "DELETE")).toBe(403);
+    expect(await status("/api/tasks/restore", "POST")).toBe(403);
+    expect(await status("/api/vault", "POST")).toBe(403);
+    expect(await status("/api/stats", "POST")).toBe(403);
+    // Allowed writes reach their handlers
+    expect(await status("/api/accounts/999/sync", "POST")).toBe(404);
+    const blob = new Uint8Array([4, 5, 6]);
+    const put = await fetch(`${BASE}/api/search-index`, { method: "PUT", body: blob, headers: { Cookie: sessionCookie } });
+    expect(put.status).toBe(204);
+    // The login stays in front of it
+    expect((await fetch(`${BASE}/api/accounts/2`, { method: "DELETE" })).status).toBe(401);
+    expect((await api("/api/accounts")).map((a: any) => a.name)).toEqual(["Bob"]);
   });
 });

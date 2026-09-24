@@ -22,6 +22,23 @@ export function CenteredCard({ children }: { children: ReactNode }) {
   );
 }
 
+/** Shown instead of the setup in read-only mode, which can't create the vault. */
+export function ReadOnlySetup() {
+  return (
+    <CenteredCard>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <LockKeyhole className="size-5" /> Encryption is not set up
+        </CardTitle>
+        <CardDescription>
+          Mailback runs in read-only mode, so it can't be set up here. Start it once without MAILBACK_READ_ONLY to
+          create your keys and add accounts.
+        </CardDescription>
+      </CardHeader>
+    </CenteredCard>
+  );
+}
+
 export function VaultSetup() {
   const { saveVault } = useVault();
   const [passphrase, setPassphrase] = useState("");
