@@ -45,7 +45,8 @@ stream the file straight to disk; other browsers build it in memory first. The e
 
 ## Login
 
-Set `MAILBACK_PASSWORD_HASH` to require a password for the web UI and API:
+Set `MAILBACK_PASSWORD_HASH` to require a password for the web UI and API. Without it, the server logs a
+warning and anyone who can reach it can use it, so always set it unless Mailback is only reachable by you:
 
 ```bash
 bun run hash-password                                      # prompts for the password
@@ -61,9 +62,8 @@ The login is a separate layer from the encryption. It controls who can reach the
 controls who can read mail.
 
 **Limitations:**
-- Without `MAILBACK_PASSWORD_HASH` there is no login. Anyone who can reach the web UI can then download the
-  (encrypted) data and try to brute-force the wrapped private key offline. Even with a login, use a long
-  passphrase, and preferably serve Mailback over HTTPS behind a VPN or reverse proxy.
+- The login guards the API, not the data. Anyone who gets hold of the database file (host access, a backup) can
+  try to brute-force the wrapped private key offline, so only a long vault passphrase protects the mail there.
 - Someone who controls the server can serve modified JavaScript to your browser and capture your passphrase. The
   encryption protects the data at rest (disk, backups, a stolen DB), not against a malicious server.
 - If `MAILBACK_SECRET` is not set, the key that protects IMAP passwords sits next to the database.
