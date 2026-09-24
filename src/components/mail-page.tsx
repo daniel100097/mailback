@@ -47,14 +47,8 @@ export function MailPage({ onManageAccounts }: { onManageAccounts: () => void })
       <div className="m-auto flex flex-col items-center gap-3 text-center">
         <MailOpen className="size-10 text-muted-foreground" />
         <h2 className="text-lg font-semibold">Nothing backed up yet</h2>
-        {readOnly ? (
-          <p className="text-sm text-muted-foreground">Mailback runs in read-only mode, so accounts can't be added here.</p>
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">Add an IMAP account to start your first backup.</p>
-            <Button onClick={onManageAccounts}>Go to accounts</Button>
-          </>
-        )}
+        <p className="text-sm text-muted-foreground">Add an IMAP account to start your first backup.</p>
+        <Button onClick={onManageAccounts}>Go to accounts</Button>
       </div>
     );
   }

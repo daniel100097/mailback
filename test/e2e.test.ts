@@ -346,30 +346,47 @@ describe.skipIf(!IMAP_HOST)("e2e", () => {
     expect(await api("/api/search-index")).toBeNull();
   });
 
-  test("read-only mode blocks every write except syncs and the search index", async () => {
+  test("read-only mode never writes to IMAP but still syncs", async () => {
+    const client = imap(bob);
+    await client.connect();
+    await client.append("INBOX", MESSAGES[0]!, []);
+    await client.logout();
+
     server.kill();
     await server.exited;
     await startServer({ MAILBACK_READ_ONLY: "true" });
-
     // Same server secret and password hash, so the session survives the restart
     expect(await api<object>("/api/session")).toEqual({ required: true, authenticated: true, readOnly: true });
-    expect((await api("/api/vault")).configured).toBe(true);
-    const status = async (path: string, method: string, body: unknown = {}) =>
-      (await fetch(`${BASE}${path}`, { method, body: JSON.stringify(body), headers: { Cookie: sessionCookie } })).status;
-    expect(await status("/api/accounts", "POST")).toBe(403);
-    expect(await status("/api/accounts/test", "POST")).toBe(403);
-    expect(await status("/api/accounts/2", "PATCH")).toBe(403);
-    expect(await status("/api/accounts/2", "DELETE")).toBe(403);
-    expect(await status("/api/tasks/restore", "POST")).toBe(403);
-    expect(await status("/api/vault", "POST")).toBe(403);
-    expect(await status("/api/stats", "POST")).toBe(403);
-    // Allowed writes reach their handlers
-    expect(await status("/api/accounts/999/sync", "POST")).toBe(404);
-    const blob = new Uint8Array([4, 5, 6]);
-    const put = await fetch(`${BASE}/api/search-index`, { method: "PUT", body: blob, headers: { Cookie: sessionCookie } });
-    expect(put.status).toBe(204);
-    // The login stays in front of it
-    expect((await fetch(`${BASE}/api/accounts/2`, { method: "DELETE" })).status).toBe(401);
-    expect((await api("/api/accounts")).map((a: any) => a.name)).toEqual(["Bob"]);
+
+    const restore = await fetch(`${BASE}/api/tasks/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: sessionCookie },
+      body: JSON.stringify({ mailboxId: 1, targetAccountId: 2, targetPath: "Again", keys: {} }),
+    });
+    expect(restore.status).toBe(403);
+    expect(await restore.text()).toContain("read-only");
+
+    // Changes inside Mailback are still allowed
+    await api("/api/accounts/2", { method: "PATCH", body: JSON.stringify({ name: "Bob (read-only)" }) });
+    await api("/api/accounts/2/sync", { method: "POST" });
+    await waitFor(async () => {
+      const [account] = await api("/api/accounts");
+      if (account.lastRun?.status === "failed") throw new Error(account.lastRun.error);
+      return account.lastRun?.status === "success";
+    }, "read-only sync");
+    expect((await api("/api/accounts"))[0]).toMatchObject({ name: "Bob (read-only)", lastRun: { messagesFetched: 4 } });
+
+    // Syncing only EXAMINEs folders, so the new message is still unread
+    const check = imap(bob);
+    await check.connect();
+    const lock = await check.getMailboxLock("INBOX", { readOnly: true });
+    try {
+      const seen = [];
+      for await (const msg of check.fetch("1:*", { flags: true })) seen.push(msg.flags!.has("\\Seen"));
+      expect(seen).toEqual([false]);
+    } finally {
+      lock.release();
+      await check.logout();
+    }
   });
 });

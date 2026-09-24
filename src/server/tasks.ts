@@ -1,8 +1,9 @@
 import { and, asc, eq } from "drizzle-orm";
 import { aad, fromBase64, importAesKey, open } from "@/shared/crypto";
 import { db, schema } from "./db";
+import { env } from "./env";
 import { HttpError } from "./http";
-import { createImapClient, describeImapError } from "./imap";
+import { createImapClient, describeImapError, ReadOnlyError } from "./imap";
 import { decryptSecret } from "./secret";
 
 /**
@@ -53,6 +54,7 @@ type RestoreInput = {
 
 /** Upload every message of a backed-up mailbox to a folder on an IMAP account. */
 export async function startRestore(input: RestoreInput): Promise<Task> {
+  if (env.MAILBACK_READ_ONLY) throw new HttpError(403, new ReadOnlyError().message);
   const mailbox = db.select().from(schema.mailboxes).where(eq(schema.mailboxes.id, input.mailboxId)).get();
   if (!mailbox) throw new HttpError(404, "Mailbox not found");
   const account = db.select().from(schema.accounts).where(eq(schema.accounts.id, input.targetAccountId)).get();

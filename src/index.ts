@@ -5,7 +5,6 @@ import { authRoutes, protect } from "./server/auth";
 import { db } from "./server/db";
 import { env } from "./server/env";
 import { errorResponse } from "./server/http";
-import { readOnly } from "./server/read-only";
 import { accountRoutes } from "./server/routes/accounts";
 import { mailRoutes } from "./server/routes/mail";
 import { taskRoutes } from "./server/routes/tasks";
@@ -22,21 +21,19 @@ const server = serve({
   port: env.PORT,
   // Raw messages can be large
   maxRequestBodySize: 512 * 1024 * 1024,
-  routes: protect(
-    readOnly({
-      // Serve index.html for all unmatched routes.
-      "/*": index,
+  routes: protect({
+    // Serve index.html for all unmatched routes.
+    "/*": index,
 
-      "/api/health": () => Response.json({ status: "ok" }),
-      "/api/*": () => Response.json({ error: "Not found" }, { status: 404 }),
+    "/api/health": () => Response.json({ status: "ok" }),
+    "/api/*": () => Response.json({ error: "Not found" }, { status: 404 }),
 
-      ...authRoutes,
-      ...vaultRoutes,
-      ...accountRoutes,
-      ...mailRoutes,
-      ...taskRoutes,
-    }),
-  ),
+    ...authRoutes,
+    ...vaultRoutes,
+    ...accountRoutes,
+    ...mailRoutes,
+    ...taskRoutes,
+  }),
 
   error: errorResponse,
 
@@ -50,3 +47,4 @@ const server = serve({
 });
 
 console.log(`📬 Mailback running at ${server.url}`);
+if (env.MAILBACK_READ_ONLY) console.log("🔒 Read-only mode: Mailback never writes to IMAP servers, restore is disabled.");

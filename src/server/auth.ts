@@ -3,7 +3,6 @@ import { z } from "zod";
 import { fromBase64 } from "@/shared/crypto";
 import { env } from "./env";
 import { HttpError, parseBody } from "./http";
-import { readOnlyMode } from "./read-only";
 import { deriveHmacKey } from "./secret";
 
 /**
@@ -94,7 +93,7 @@ function cookieOptions(req: Request) {
 
 export const authRoutes = {
   "/api/session": async (req: BunRequest) =>
-    Response.json({ required: !!passwordHash, authenticated: await authenticated(req), readOnly: readOnlyMode }),
+    Response.json({ required: !!passwordHash, authenticated: await authenticated(req), readOnly: env.MAILBACK_READ_ONLY }),
 
   "/api/login": {
     async POST(req: BunRequest, server: Server<unknown>) {

@@ -10,7 +10,7 @@ services:
       MAILBACK_SECRET: ${MAILBACK_SECRET:-}
       # Login password hash from `bun run hash-password` (base64 form). Empty = no login.
       MAILBACK_PASSWORD_HASH: ${MAILBACK_PASSWORD_HASH:-}
-      # true = browse, search and export only (no restore, no account changes)
+      # true = never write to IMAP servers (no restore); everything else works
       MAILBACK_READ_ONLY: ${MAILBACK_READ_ONLY:-false}
     volumes:
       - mailback-data:/data

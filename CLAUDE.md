@@ -9,7 +9,7 @@ IMAP email backup tool: syncs mailboxes from IMAP servers into an encrypted SQLi
 - IMAP passwords are the exception: encrypted with the server key (`src/server/secret.ts`), since scheduled syncs need them.
 - Exports (`src/lib/export.ts`) decrypt in the browser too; `/api/mailboxes/:id/sources` only serves ciphertext.
 - The optional login (`MAILBACK_PASSWORD_HASH`, `src/server/auth.ts`) is access control only, not part of the encryption. `protect()` in `src/index.ts` guards every `/api/*` route except those in `PUBLIC_ROUTES`, so new routes are protected automatically.
-- `MAILBACK_READ_ONLY` (`src/server/read-only.ts`) rejects every non-GET `/api/*` request except those in `ALLOWED_WRITES` (login, logout, search index, sync). New write routes are blocked automatically in that mode; hide their UI via `useSession().readOnly`.
+- `MAILBACK_READ_ONLY` only means "never write to IMAP servers"; UI and DB changes stay allowed. `createImapClient` (`src/server/imap.ts`) rejects every IMAP write command and forces `EXAMINE`, so new IMAP features are covered automatically. Restore returns 403 up front; hide IMAP-writing UI via `useSession().readOnly`.
 - Every sealed blob is bound to its row via AAD (`aad.*` in `src/shared/crypto.ts`); keep those in sync when changing schemas.
 - Plaintext columns are limited to metadata (folder paths, uid, flags, size, dates, account config). Don't add content-bearing plaintext columns.
 

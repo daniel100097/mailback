@@ -7,18 +7,24 @@ import { testImapConnection } from "../imap";
 import { decryptSecret, encryptSecret } from "../secret";
 import { isSyncing, startSync } from "../sync";
 
-const accountSchema = z.object({
+const accountFields = z.object({
   name: z.string().trim().min(1),
   host: z.string().trim().min(1),
-  port: z.int().min(1).max(65535).default(993),
-  secure: z.boolean().default(true),
+  port: z.int().min(1).max(65535),
+  secure: z.boolean(),
   username: z.string().trim().min(1),
   password: z.string().min(1),
+  enabled: z.boolean(),
+});
+const accountSchema = accountFields.extend({
+  port: accountFields.shape.port.default(993),
+  secure: z.boolean().default(true),
   enabled: z.boolean().default(true),
 });
 
-// When editing, an omitted password keeps the stored one.
-const accountUpdateSchema = accountSchema.partial();
+// When editing, omitted fields (including the password) keep their stored values. No defaults here: zod would
+// fill them in and silently reset port, TLS and enabled.
+const accountUpdateSchema = accountFields.partial();
 const connectionTestSchema = accountSchema
   .pick({ host: true, port: true, secure: true, username: true })
   .extend({ password: z.string().optional(), accountId: z.int().optional() });

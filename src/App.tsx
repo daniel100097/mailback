@@ -9,7 +9,7 @@ import { MailPage } from "@/components/mail-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
-import { ReadOnlySetup, VaultSetup, VaultUnlock } from "@/components/vault-screens";
+import { VaultSetup, VaultUnlock } from "@/components/vault-screens";
 import { useAccounts } from "@/lib/queries";
 import { SearchProvider, useSearch } from "@/lib/search";
 import { SessionProvider, useSession, useSessionQuery } from "@/lib/session";
@@ -55,7 +55,6 @@ function SessionGate() {
 
 function VaultGate() {
   const { state, reload } = useVault();
-  const { readOnly } = useSession();
   switch (state.status) {
     case "loading":
       return <Loader2 className="m-auto mt-[40vh] animate-spin text-muted-foreground" />;
@@ -69,7 +68,7 @@ function VaultGate() {
         </div>
       );
     case "setup":
-      return readOnly ? <ReadOnlySetup /> : <VaultSetup />;
+      return <VaultSetup />;
     case "locked":
       return <VaultUnlock />;
     case "unlocked":
@@ -116,8 +115,8 @@ function Shell() {
         </nav>
         <div className="ml-auto flex items-center gap-1">
           {readOnly && (
-            <Badge variant="secondary" title="Browse, search and export only. Set by MAILBACK_READ_ONLY.">
-              Read-only
+            <Badge variant="secondary" title="Mailback never writes to your IMAP servers, so restore is disabled.">
+              IMAP read-only
             </Badge>
           )}
           <Button variant="ghost" size="sm" onClick={lock}>

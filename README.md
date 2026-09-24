@@ -71,10 +71,10 @@ controls who can read mail.
 
 ## Read-only mode
 
-Set `MAILBACK_READ_ONLY=true` to only browse, search and export. The server then rejects every change with 403:
-no restore (the only feature that uploads mail to an IMAP server), no adding, editing or deleting accounts and
-no vault setup, so set up the vault and accounts before switching it on. Backups keep running on schedule and via
-"Sync now", since syncing only reads from IMAP (folders are opened read-only).
+Set `MAILBACK_READ_ONLY=true` to guarantee that Mailback never changes anything on your IMAP servers. Restore
+(the only feature that uploads mail) is disabled, and every IMAP client rejects write commands (append, flag
+changes, delete, copy, move, folder changes) and opens folders with `EXAMINE` only, so the server doesn't mark
+mail as read either. Everything inside Mailback keeps working: syncs, accounts, search and export.
 
 ## Development
 
@@ -133,7 +133,7 @@ volume at `/data`.
 | `MAILBACK_SECRET`        |                      | Base64 32-byte key that encrypts IMAP passwords                        |
 | `SECRET_KEY_PATH`        | `./data/secret.key`  | Where that key is generated and read if `MAILBACK_SECRET` is unset     |
 | `MAILBACK_PASSWORD_HASH` |                      | Login password hash (`bun run hash-password`); unset = no login        |
-| `MAILBACK_READ_ONLY`     | `false`              | `true`: browse, search and export only; no restore or account changes  |
+| `MAILBACK_READ_ONLY`     | `false`              | `true`: never write to IMAP servers (no restore)                       |
 
 ## Layout
 
@@ -153,7 +153,7 @@ src/
     tasks.ts              # restore task (uses browser-provided keys)
     secret.ts             # server key for IMAP passwords (and the session signing key)
     auth.ts               # optional login, guards all /api routes
-    read-only.ts          # MAILBACK_READ_ONLY: blocks all API writes except syncs
+    imap.ts               # IMAP client; MAILBACK_READ_ONLY blocks its write commands
     routes/               # /api/vault, /api/accounts, mail + search, tasks
     db/schema.ts          # drizzle schema
 drizzle/                  # generated SQL migrations
