@@ -1,0 +1,17 @@
+services:
+  mailback:
+    build: .
+    image: ghcr.io/daniel100097/mailback:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # Encrypts stored IMAP passwords; generate with `openssl rand -base64 32`. Empty = key file in /data.
+      MAILBACK_SECRET: ${MAILBACK_SECRET:-}
+      # Login password hash from `bun run hash-password` (base64 form). Empty = no login.
+      MAILBACK_PASSWORD_HASH: ${MAILBACK_PASSWORD_HASH:-}
+    volumes:
+      - mailback-data:/data
+
+volumes:
+  mailback-data:
