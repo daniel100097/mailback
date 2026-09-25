@@ -89,6 +89,8 @@ export type Mailbox = {
   path: string;
   delimiter: string | null;
   specialUse: string | null;
+  /** When the folder disappeared from the IMAP server; its backup is kept */
+  remoteDeletedAt: string | null;
   messageCount: number;
 };
 
@@ -103,6 +105,8 @@ type MessageMeta = {
   receivedAt: string | null;
   flags: string[];
   size: number;
+  /** When the message disappeared from the IMAP server; it stays in the backup */
+  remoteDeletedAt: string | null;
 };
 
 /** Wrapped data keys by id; unwrap them with the vault private key. */

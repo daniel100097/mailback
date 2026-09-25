@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Loader2, Paperclip } from "lucide-react";
+import { CloudOff, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, type MessagePage } from "@/lib/api";
 import { formatShortDate } from "@/lib/format";
@@ -20,6 +20,7 @@ function MessageRow({
   snippet,
   attachments,
   unread,
+  remoteDeleted,
   extra,
 }: {
   selected: boolean;
@@ -30,6 +31,7 @@ function MessageRow({
   snippet?: string;
   attachments?: boolean;
   unread?: boolean;
+  remoteDeleted?: boolean;
   extra?: string;
 }) {
   return (
@@ -45,6 +47,11 @@ function MessageRow({
         {unread && <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />}
         <span className={cn("truncate", unread ? "font-semibold" : "font-medium")}>{from || "(unknown sender)"}</span>
         {attachments && <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />}
+        {remoteDeleted && (
+          <CloudOff className="size-3.5 shrink-0 text-muted-foreground" aria-label="Deleted on server">
+            <title>Deleted on server</title>
+          </CloudOff>
+        )}
         <span className="ml-auto shrink-0 text-xs text-muted-foreground">{formatShortDate(date)}</span>
       </div>
       <div className={cn("truncate", unread && "font-semibold")}>{subject || "(no subject)"}</div>
@@ -96,6 +103,7 @@ export function MailboxMessages({
           snippet={m.envelope.snippet}
           attachments={m.envelope.attachments > 0}
           unread={!m.flags.includes("\\Seen")}
+          remoteDeleted={!!m.remoteDeletedAt}
         />
       ))}
       {query.hasNextPage && (

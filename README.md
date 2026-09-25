@@ -7,6 +7,10 @@ Self-hosted backup for IMAP email: it keeps an encrypted local copy of your mail
 - **DB:** SQLite (`bun:sqlite`) via [Drizzle ORM](https://orm.drizzle.team). Everything, including raw mail and the search index, lives in this one file.
 - **IMAP:** [imapflow](https://github.com/postalsys/imapflow), parsing with [postal-mime](https://github.com/postalsys/postal-mime), search with [MiniSearch](https://github.com/lucaong/minisearch)
 
+**Deleted mail stays in the backup.** A sync never removes anything. Messages and folders that are gone from
+the server are marked "Deleted on server" (a cloud icon in the list), and the mark goes away if they come back.
+You can still read, search, export and restore them.
+
 ## How the encryption works
 
 The server syncs mail on its own schedule, but once a message is stored it can't read it again.
@@ -40,7 +44,7 @@ stream the file straight to disk; other browsers build it in memory first. The e
 **Stored in plaintext:**
 - account settings (host, port, username)
 - folder paths
-- IMAP UIDs, flags, sizes and dates
+- IMAP UIDs, flags, sizes and dates, and when a message or folder was deleted on the server
 - sync history
 
 ## Login

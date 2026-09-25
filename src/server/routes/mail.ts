@@ -33,6 +33,7 @@ const messageColumns = {
   receivedAt: schema.messages.receivedAt,
   flags: schema.messages.flags,
   size: schema.messages.size,
+  remoteDeletedAt: schema.messages.remoteDeletedAt,
 };
 
 export const mailRoutes = {
@@ -56,6 +57,7 @@ export const mailRoutes = {
         path: schema.mailboxes.path,
         delimiter: schema.mailboxes.delimiter,
         specialUse: schema.mailboxes.specialUse,
+        remoteDeletedAt: schema.mailboxes.remoteDeletedAt,
         messageCount: count(schema.messages.id),
       })
       .from(schema.mailboxes)

@@ -59,6 +59,8 @@ export const mailboxes = sqliteTable(
     // If UIDVALIDITY changes, previously synced UIDs are no longer valid.
     uidValidity: integer(),
     lastSyncedUid: integer().notNull().default(0),
+    /** Set when the folder was no longer listed on the server. Its backup is kept. */
+    remoteDeletedAt: integer({ mode: "timestamp" }),
     ...timestamps,
   },
   t => [uniqueIndex("mailboxes_account_path_idx").on(t.accountId, t.path)],
@@ -94,6 +96,8 @@ export const messages = sqliteTable(
     receivedAt: integer({ mode: "timestamp" }),
     flags: text({ mode: "json" }).$type<string[]>().notNull().default([]),
     size: integer().notNull(),
+    /** Set when the message was no longer on the server. Deleted mail is never removed from the backup. */
+    remoteDeletedAt: integer({ mode: "timestamp" }),
     createdAt,
   },
   t => [

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Download, FileText, Loader2, Mail, Paperclip } from "lucide-react";
+import { CloudOff, Download, FileText, Loader2, Mail, Paperclip } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,8 +81,13 @@ export function MessageView({ messageId }: { messageId: number }) {
           <dt className="text-muted-foreground">Date</dt>
           <dd>{formatDate(envelope.date ?? detail.receivedAt)}</dd>
         </dl>
-        {flags.length > 0 && (
+        {(flags.length > 0 || detail.remoteDeletedAt) && (
           <div className="flex flex-wrap gap-1">
+            {detail.remoteDeletedAt && (
+              <Badge variant="outline" title={`Kept in the backup. Noticed missing on ${formatDate(detail.remoteDeletedAt)}`}>
+                <CloudOff /> Deleted on server
+              </Badge>
+            )}
             {flags.map(flag => (
               <Badge key={flag} variant="secondary">
                 {flag.replace(/^\\/, "")}

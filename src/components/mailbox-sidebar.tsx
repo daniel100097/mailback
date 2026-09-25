@@ -1,4 +1,4 @@
-import { Archive, Download, File, Folder, Inbox, MoreHorizontal, Send, ShieldAlert, Star, Trash2, Undo2 } from "lucide-react";
+import { Archive, CloudOff, Download, File, Folder, Inbox, MoreHorizontal, Send, ShieldAlert, Star, Trash2, Undo2 } from "lucide-react";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -78,10 +78,15 @@ export function MailboxSidebar({
                   className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-left"
                   style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
                   onClick={() => onSelect(mailbox)}
-                  title={mailbox.path}
+                  title={mailbox.remoteDeletedAt ? `${mailbox.path} (deleted on server, kept in the backup)` : mailbox.path}
                 >
                   <Icon className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{mailboxName(mailbox)}</span>
+                  <span className={cn("truncate", mailbox.remoteDeletedAt && "text-muted-foreground")}>
+                    {mailboxName(mailbox)}
+                  </span>
+                  {mailbox.remoteDeletedAt && (
+                    <CloudOff className="size-3.5 shrink-0 text-muted-foreground" aria-label="Deleted on server" />
+                  )}
                   <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                     {mailbox.messageCount || ""}
                   </span>

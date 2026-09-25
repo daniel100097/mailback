@@ -295,6 +295,64 @@ describe.skipIf(!IMAP_HOST)("e2e", () => {
     expect(new Uint8Array(await api<ArrayBuffer>("/api/search-index"))).toEqual(blob);
   });
 
+  test("mail deleted on the server is kept and marked as deleted", async () => {
+    const sync = async () => {
+      await api("/api/accounts/1/sync", { method: "POST" });
+      await waitFor(async () => {
+        const [account] = await api("/api/accounts");
+        if (account.lastRun?.status === "failed") throw new Error(account.lastRun.error);
+        return !account.syncing && account.lastRun?.status === "success";
+      }, "sync");
+    };
+
+    const onServer = async (change: (client: ImapFlow) => Promise<unknown>) => {
+      const client = imap(alice);
+      await client.connect();
+      await change(client);
+      await client.logout();
+    };
+
+    await onServer(async client => {
+      await client.mailboxCreate("Old");
+      await client.append("Old", MESSAGES[0]!, []);
+    });
+    await sync();
+
+    await onServer(async client => {
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        await client.messageDelete("1", { uid: true });
+      } finally {
+        lock.release();
+      }
+    });
+    // Renamed away rather than deleted: GreenMail fails to DELETE a folder that a past session had selected
+    await onServer(client => client.mailboxRename("Old", "Renamed"));
+    await sync();
+
+    const mailboxes = await api("/api/mailboxes");
+    const inbox = mailboxes.find((m: any) => m.path === "INBOX");
+    const old = mailboxes.find((m: any) => m.path === "Old");
+    expect(inbox).toMatchObject({ messageCount: 3, remoteDeletedAt: null });
+    expect(old).toMatchObject({ messageCount: 1, remoteDeletedAt: expect.any(String) });
+    // The renamed folder is backed up as a new one
+    expect(mailboxes.find((m: any) => m.path === "Renamed")).toMatchObject({ messageCount: 1, remoteDeletedAt: null });
+    expect((await api("/api/stats")).messages).toBe(5);
+
+    const { messages } = await api(`/api/mailboxes/${inbox.id}/messages`);
+    const deleted = messages.filter((m: any) => m.remoteDeletedAt).map((m: any) => m.uid);
+    expect(deleted).toEqual([1]);
+    const [oldMessage] = (await api(`/api/mailboxes/${old.id}/messages`)).messages;
+    expect(oldMessage.remoteDeletedAt).toEqual(expect.any(String));
+
+    // A folder that reappears is no longer marked
+    await onServer(client => client.mailboxRename("Renamed", "Old"));
+    await sync();
+    const after = await api("/api/mailboxes");
+    expect(after.find((m: any) => m.path === "Old").remoteDeletedAt).toBeNull();
+    expect(after.find((m: any) => m.path === "Renamed").remoteDeletedAt).toEqual(expect.any(String));
+  }, 30_000);
+
   test("restore task decrypts with browser-provided data keys and uploads to IMAP", async () => {
     const inbox = (await api("/api/mailboxes")).find((m: any) => m.path === "INBOX");
     const wrapped: Record<string, string> = await api(`/api/mailboxes/${inbox.id}/data-keys`);
