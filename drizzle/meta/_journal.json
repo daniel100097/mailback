@@ -8,6 +8,13 @@
       "when": 1790256537077,
       "tag": "0000_loose_dust",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790329665338,
+      "tag": "0001_round_jubilee",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import type { ImapFlow } from "imapflow";
 import PostalMime, { type Address as PostalAddress, type Email } from "postal-mime";
 import { aad, generateAesKey, importPublicKey, seal, sealJson, wrapAesKey, type MessageLocation } from "@/shared/crypto";
 import { formatAddresses, listedAttachments, type Address, type Envelope, type SearchDoc } from "@/shared/mail";
@@ -45,6 +46,7 @@ async function syncAccount(accountId: number): Promise<void> {
     await client.connect();
 
     try {
+      const listed: number[] = [];
       for (const folder of await client.list()) {
         if (folder.flags.has("\\Noselect") || folder.flags.has("\\NonExistent")) continue;
 
@@ -53,10 +55,11 @@ async function syncAccount(accountId: number): Promise<void> {
           .values({ accountId, path: folder.path, delimiter: folder.delimiter, specialUse: folder.specialUse })
           .onConflictDoUpdate({
             target: [schema.mailboxes.accountId, schema.mailboxes.path],
-            set: { delimiter: folder.delimiter, specialUse: folder.specialUse ?? null },
+            set: { delimiter: folder.delimiter, specialUse: folder.specialUse ?? null, remoteDeletedAt: null },
           })
           .returning()
           .get();
+        listed.push(mailbox.id);
 
         const lock = await client.getMailboxLock(folder.path, { readOnly: true });
         try {
@@ -69,6 +72,7 @@ async function syncAccount(accountId: number): Promise<void> {
               .where(eq(schema.mailboxes.id, mailbox.id))
               .run();
           }
+          await markRemoteDeletions(client, mailbox.id, uidValidity, client.mailbox.exists);
           if (client.mailbox.exists === 0 || client.mailbox.uidNext <= lastSyncedUid + 1) continue;
 
           // A fresh data key per folder and run: handing a task the keys of one folder reveals nothing
@@ -136,6 +140,7 @@ async function syncAccount(accountId: number): Promise<void> {
           lock.release();
         }
       }
+      markDeletedMailboxes(accountId, listed);
     } finally {
       await client.logout().catch(() => client.close());
     }
@@ -154,6 +159,68 @@ async function syncAccount(accountId: number): Promise<void> {
       .where(eq(schema.syncRuns.id, run.id))
       .run();
   }
+}
+
+/**
+ * Mark backed-up messages that are gone from the selected folder as deleted on the server, and unmark those
+ * that are back. Mail deleted on the server is never removed from the backup.
+ */
+async function markRemoteDeletions(client: ImapFlow, mailboxId: number, uidValidity: number, exists: number) {
+  const uids = exists === 0 ? [] : await client.search({ all: true }, { uid: true });
+  if (!uids) {
+    // Without a reliable list of what's on the server, leave the marks as they are.
+    console.warn(`Could not list the messages of mailbox ${mailboxId}, skipping deletion check`);
+    return;
+  }
+  const onServer = new Set(uids);
+  const backedUp = db
+    .select({ id: schema.messages.id, uid: schema.messages.uid, remoteDeletedAt: schema.messages.remoteDeletedAt })
+    .from(schema.messages)
+    .where(and(eq(schema.messages.mailboxId, mailboxId), eq(schema.messages.uidValidity, uidValidity)))
+    .all();
+  const deleted = backedUp.filter(m => !m.remoteDeletedAt && !onServer.has(m.uid)).map(m => m.id);
+  const restored = backedUp.filter(m => m.remoteDeletedAt && onServer.has(m.uid)).map(m => m.id);
+  setRemoteDeletedAt(deleted, new Date());
+  setRemoteDeletedAt(restored, null);
+}
+
+function setRemoteDeletedAt(messageIds: number[], remoteDeletedAt: Date | null) {
+  // Batches stay below SQLite's bound parameter limit.
+  for (let i = 0; i < messageIds.length; i += 1000) {
+    db.update(schema.messages)
+      .set({ remoteDeletedAt })
+      .where(inArray(schema.messages.id, messageIds.slice(i, i + 1000)))
+      .run();
+  }
+}
+
+/** Mark folders the server no longer lists, and their messages, as deleted on the server. Their backup is kept. */
+function markDeletedMailboxes(accountId: number, listed: number[]) {
+  const now = new Date();
+  db.transaction(tx => {
+    const gone = tx
+      .update(schema.mailboxes)
+      .set({ remoteDeletedAt: now })
+      .where(
+        and(
+          eq(schema.mailboxes.accountId, accountId),
+          notInArray(schema.mailboxes.id, listed),
+          isNull(schema.mailboxes.remoteDeletedAt),
+        ),
+      )
+      .returning({ id: schema.mailboxes.id })
+      .all();
+    if (gone.length === 0) return;
+    tx.update(schema.messages)
+      .set({ remoteDeletedAt: now })
+      .where(
+        and(
+          inArray(schema.messages.mailboxId, gone.map(m => m.id)),
+          isNull(schema.messages.remoteDeletedAt),
+        ),
+      )
+      .run();
+  });
 }
 
 async function encryptMessage(key: CryptoKey, location: MessageLocation, source: Buffer) {
